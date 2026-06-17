@@ -109,14 +109,16 @@ main {
   margin-top: 0;
 }
 
+/* Base style for all textareas with fixed alignment/padding constraints */
 textarea {
   width: 100%;
   height: 140px;
   margin-bottom: 10px;
-  padding: 6px;
+  padding: 8px;
   font-size: 13px;
   border: 1px solid #ccc;
   border-radius: 4px;
+  box-sizing: border-box; /* Keeps padding inside width boundaries */
 }
 
 .modal-buttons {
@@ -124,10 +126,11 @@ textarea {
   justify-content: space-between;
 }
 
+/* Cancel/Secondary Buttons */
 .modal-buttons button {
   width: 48%;
   padding: 8px;
-  background: #7a7a7a; /* Neutral grey for cancel/secondary actions */
+  background: #7a7a7a;
   color: white;
   border: none;
   border-radius: 4px;
@@ -138,22 +141,19 @@ textarea {
   background: #5a5a5a;
 }
 
-/* Standardized unified Green style for main actions (Generate/Export) */
+/* Unified Green Style for Primary Actions (Generate/Export) */
 .modal-buttons button.btn-action {
-  background: #107c41;
+  background: #107c41 !important;
 }
 
 .modal-buttons button.btn-action:hover {
-  background: #0b592e;
+  background: #0b592e !important;
 }
 
 #modal-routeoptimizer textarea {
-  width: 100%;
   height: 160px;
   font-family: monospace;
   font-size: 14px;
-  padding: 8px;
-  box-sizing: border-box;
 }
 
 /* HOURS LIST ---------------------------------------------- */
@@ -164,6 +164,7 @@ textarea {
   row-gap: 6px;
   column-gap: 8px;
   margin-bottom: 12px;
+  padding-right: 4px; /* Matches the padding style of the daily tracker */
 }
 
 .hours-date {
@@ -173,10 +174,11 @@ textarea {
 
 .hours-input {
   width: 100%;
-  padding: 4px;
+  padding: 6px; /* Matches layout depth of daily tracker inputs */
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 4px;
+  box-sizing: border-box; /* Keeps input bound inside the container layout */
 }
 
 /* WEEK DIVIDER -------------------------------------------- */
