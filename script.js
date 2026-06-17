@@ -1,6 +1,6 @@
 (function () {
   /* -------------------------------
-     MAP LINKS TOOL
+      MAP LINKS TOOL
   --------------------------------*/
 
   function toDMS(decimal, isLat) {
@@ -48,14 +48,16 @@
       await navigator.clipboard.writeText(text);
     } catch (e) {
       const ta = document.getElementById("hidden-output");
-      ta.value = text;
-      ta.select();
-      document.execCommand("copy");
+      if (ta) {
+        ta.value = text;
+        ta.select();
+        document.execCommand("copy");
+      }
     }
   }
 
   /* -------------------------------
-     HOURS TOOL
+      HOURS TOOL
   --------------------------------*/
 
   const anchor = new Date(2026, 4, 11); // May 11, 2026
@@ -94,17 +96,13 @@
   }
 
   /* -------------------------------
-     FOLDER BUILDER TOOL
+      FOLDER BUILDER TOOL
   --------------------------------*/
 
   function sanitizeFolderName(name) {
-    // Replace illegal characters with underscore
     let cleaned = name.replace(/[^a-zA-Z0-9 _.-]/g, "_");
-
-    // Trim spaces and periods from ends (Windows restriction)
     cleaned = cleaned.replace(/^[ .]+|[ .]+$/g, "");
 
-    // Prevent reserved Windows names
     const reserved = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
     if (reserved.test(cleaned)) {
       cleaned = "_" + cleaned;
@@ -125,11 +123,70 @@
   }
 
   /* -------------------------------
-     DOM READY
+     ROUTE OPTIMIZER TOOL (OSRM Powered)
+  --------------------------------*/
+
+  const FIXED_START = "38.9591451,-85.8651259";
+
+  // Generates standard Google Maps multi-stop direction URL from a pre-sorted array
+  function buildGoogleMapsURL(sortedCoords) {
+    if (sortedCoords.length < 1) return null;
+
+    const origin = FIXED_START;
+    const destinationObj = sortedCoords[sortedCoords.length - 1];
+    const destination = `${destinationObj.lat},${destinationObj.lon}`;
+
+    let waypointsParam = "";
+    if (sortedCoords.length > 1) {
+      const waypointParts = sortedCoords
+        .slice(0, -1) // Everything except final destination
+        .map(c => `${c.lat},${c.lon}`)
+        .join("|");
+
+      waypointsParam = `&waypoints=${encodeURIComponent(waypointParts)}`;
+    }
+
+    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypointsParam}&travelmode=driving`;
+  }
+
+  // Intercepts the array, talks to OSRM road networks, and reconstructs index order safely
+  async function getOSRMOptimizedOrder(coords) {
+    if (coords.length <= 1) return coords;
+
+    const [startLat, startLon] = FIXED_START.split(",");
+    const startPair = `${startLon.trim()},${startLat.trim()}`;
+    const coordString = coords.map(c => `${c.lon},${c.lat}`).join(";");
+
+    const url = `https://router.project-osrm.org/trip/v1/driving/${startPair};${coordString}?source=first&roundtrip=false`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.code !== "Ok" || !data.waypoints) {
+        console.warn("OSRM returned an error, falling back to original order.");
+        return coords;
+      }
+
+      // Map dynamic array index context to prevent properties of undefined errors
+      const sortedWaypoints = data.waypoints
+        .map((wp, index) => ({ ...wp, inputIndex: index }))
+        .slice(1) // Skip index 0 (FIXED_START)
+        .sort((a, b) => a.waypoint_index - b.waypoint_index);
+
+      return sortedWaypoints.map(wp => coords[wp.inputIndex - 1]);
+    } catch (error) {
+      console.error("OSRM optimization network failure, using fallback:", error);
+      return coords;
+    }
+  }
+
+  /* -------------------------------
+     DOM READY & EVENT HANDLERS
   --------------------------------*/
 
   document.addEventListener("DOMContentLoaded", () => {
-    /* MAP LINKS */
+    /* MAP LINKS INSTANCE */
     document.getElementById("open-maplinks").addEventListener("click", () => {
       const ta = document.getElementById("coords-input");
       ta.value = "";
@@ -148,7 +205,7 @@
       alert("Map links copied to clipboard.");
     });
 
-    /* HOURS TOOL */
+    /* HOURS TOOL INSTANCE */
     document.getElementById("open-hours").addEventListener("click", async () => {
       const today = new Date();
       const start = getPayPeriodStart(today);
@@ -214,7 +271,7 @@
       alert("Hours saved.");
     });
 
-    /* FOLDER BUILDER TOOL */
+    /* FOLDER BUILDER TOOL INSTANCE */
     document.getElementById("open-folderbuilder").addEventListener("click", () => {
       const ta = document.getElementById("folderbuilder-input");
       ta.value = "";
@@ -252,9 +309,7 @@
 
       try {
         const blob = await zip.generateAsync({ type: "blob" });
-
         document.getElementById("modal-folderbuilder").classList.add("hidden");
-
         downloadBlob(blob, "folders.zip");
 
         setTimeout(() => {
@@ -264,6 +319,62 @@
         console.error(e);
         output.textContent = "Error generating ZIP.";
       }
+    });
+
+    /* ROUTE OPTIMIZER BUTTON LOGIC */
+    document.getElementById("open-routeoptimizer").addEventListener("click", () => {
+      const ta = document.getElementById("routeoptimizer-input");
+      ta.value = "";
+      document.getElementById("modal-routeoptimizer").classList.remove("hidden");
+      setTimeout(() => ta.focus(), 50);
+    });
+
+    document.getElementById("routeoptimizer-cancel").addEventListener("click", () => {
+      document.getElementById("modal-routeoptimizer").classList.add("hidden");
+    });
+
+    document.getElementById("routeoptimizer-generate").addEventListener("click", async () => {
+      const raw = document.getElementById("routeoptimizer-input").value || "";
+      const lines = raw
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        .slice(0, 10);
+
+      const coords = [];
+
+      for (const line of lines) {
+        const nums = line.match(/-?\d+(\.\d+)?/g);
+        if (!nums || nums.length < 2) continue;
+
+        const lat = parseFloat(nums[0]);
+        const lon = parseFloat(nums[1]);
+
+        if (!isNaN(lat) && !isNaN(lon)) {
+          coords.push({ lat, lon });
+        }
+      }
+
+      if (coords.length < 1) {
+        alert("Need at least one valid coordinate pair.");
+        return;
+      }
+
+      const btn = document.getElementById("routeoptimizer-generate");
+      btn.innerText = "Optimizing Route...";
+
+      const optimizedCoords = await getOSRMOptimizedOrder(coords);
+      const url = buildGoogleMapsURL(optimizedCoords);
+
+      btn.innerText = "Generate Route";
+
+      if (!url) {
+        alert("Unable to build route.");
+        return;
+      }
+
+      document.getElementById("modal-routeoptimizer").classList.add("hidden");
+      window.open(url, "_blank");
     });
   });
 })();
