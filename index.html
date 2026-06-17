@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Web Tools</title>
+    <link rel="icon" type="image/svg+xml" href="assets/construction_24dp_5985E1_FILL0_wght400_GRAD0_opsz24.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="jszip.min.js"></script>
+  </head>
+
+  <body>
+    <header>
+      <h1>Web Tools</h1>
+    </header>
+
+    <main>
+      <div id="tools-grid">
+        <!-- HOURS TOOL -->
+        <div class="tool">
+          <div class="tool-title">Record Hours (Pay Period)</div>
+          <div class="tool-desc">Enter hours for each workday in the current pay period. Stored locally in your browser.</div>
+          <button class="tool-btn" id="open-hours">Run Tool</button>
+        </div>
+
+        <!-- MAP LINKS TOOL -->
+        <div class="tool">
+          <div class="tool-title">Map Links</div>
+          <div class="tool-desc">Generate Excel-ready “Map” hyperlinks from latitude/longitude coordinate pairs.</div>
+          <button class="tool-btn" id="open-maplinks">Run Tool</button>
+        </div>
+
+        <!-- FOLDER BUILDER TOOL -->
+        <div class="tool">
+          <div class="tool-title">Folder Builder</div>
+          <div class="tool-desc">Generate a ZIP containing empty folders from rows of text.</div>
+          <button class="tool-btn" id="open-folderbuilder">Run Tool</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- MAP LINKS MODAL -->
+    <div id="modal-maplinks" class="modal-overlay hidden">
+      <div class="modal">
+        <h3>Map Links</h3>
+        <textarea id="coords-input" placeholder="Paste lat/long pairs here..."></textarea>
+
+        <div class="modal-buttons">
+          <button id="modal-generate">Generate</button>
+          <button id="modal-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOURS MODAL -->
+    <div id="modal-hours" class="modal-overlay hidden">
+      <div class="modal">
+        <h3>Record Hours</h3>
+
+        <div id="hours-list"></div>
+
+        <div class="modal-buttons">
+          <button id="hours-save">Save</button>
+          <button id="hours-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOLDER BUILDER MODAL -->
+    <div id="modal-folderbuilder" class="modal-overlay hidden">
+      <div class="modal">
+        <h3>Folder Builder</h3>
+
+        <textarea id="folderbuilder-input" placeholder="One folder name per line..."></textarea>
+        <div id="folderbuilder-output" class="output"></div>
+
+        <div class="modal-buttons">
+          <button id="folderbuilder-generate">Generate ZIP</button>
+          <button id="folderbuilder-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <textarea id="hidden-output"></textarea>
+
+    <script src="script.js"></script>
+  </body>
+</html>
