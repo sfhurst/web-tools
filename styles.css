@@ -127,7 +127,7 @@ textarea {
 .modal-buttons button {
   width: 48%;
   padding: 8px;
-  background: #0078d4;
+  background: #7a7a7a; /* Neutral grey for cancel/secondary actions */
   color: white;
   border: none;
   border-radius: 4px;
@@ -135,7 +135,16 @@ textarea {
 }
 
 .modal-buttons button:hover {
-  background: #005a9e;
+  background: #5a5a5a;
+}
+
+/* Standardized unified Green style for main actions (Generate/Export) */
+.modal-buttons button.btn-action {
+  background: #107c41;
+}
+
+.modal-buttons button.btn-action:hover {
+  background: #0b592e;
 }
 
 #modal-routeoptimizer textarea {
