@@ -48,7 +48,7 @@ main {
 
   display: flex;
   flex-direction: column;
-  justify-content: space-between; /* pushes button to bottom */
+  justify-content: space-between;
 }
 
 .tool-title {
@@ -71,7 +71,7 @@ main {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  margin-top: 12px; /* small gap above button */
+  margin-top: 12px;
 }
 
 .tool-btn:hover {
@@ -170,22 +170,67 @@ textarea {
   border-radius: 4px;
 }
 
-/* Week divider */
+/* WEEK DIVIDER -------------------------------------------- */
+
 .week-divider {
   grid-column: 1 / -1;
   border-top: 1px solid #ccc;
   margin: 6px 0;
 }
 
-/* Folder Builder output */
+/* FOLDER BUILDER OUTPUT ----------------------------------- */
+
 .output {
   font-size: 12px;
   color: #444;
   margin-bottom: 10px;
 }
 
-/* Hidden output */
 #hidden-output {
   position: absolute;
   left: -9999px;
+}
+
+/* DAILY LOG EXTRA STYLES --------------------------------- */
+
+.dailylog-modal {
+  width: 650px !important;
+  max-width: 95%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#dailylog-container {
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding-right: 4px;
+}
+
+.log-hour-row {
+  display: grid;
+  grid-template-columns: 75px 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.log-time-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.quarter-input {
+  width: 100%;
+  padding: 6px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.quarter-input::placeholder {
+  color: #ccc;
+  font-size: 11px;
 }

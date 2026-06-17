@@ -1,7 +1,14 @@
 (function () {
   /* -------------------------------
-      MAP LINKS TOOL
+      UTILITIES & HELPERS
   --------------------------------*/
+
+  function safeListen(id, event, callback) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener(event, callback);
+    }
+  }
 
   function toDMS(decimal, isLat) {
     const abs = Math.abs(decimal);
@@ -16,7 +23,7 @@
   }
 
   function buildExcelHyperlink(latDec, lonDec, latDMS, lonDMS) {
-    const url = `https://www.google.com/maps/place/${encodeURIComponent(latDMS)}+${encodeURIComponent(lonDMS)}/@${latDec},${lonDec},17z`;
+    const url = `https://www.google.com/maps/place/$${encodeURIComponent(latDMS)}+${encodeURIComponent(lonDMS)}/@${latDec},${lonDec},17z`;
     return `=HYPERLINK("${url}","Map")`;
   }
 
@@ -25,7 +32,6 @@
     const results = [];
 
     for (const line of lines) {
-      // Extract first two numbers (lat/lon) from the line
       const nums = line.match(/-?\d+(\.\d+)?/g);
       if (!nums || nums.length < 2) continue;
 
@@ -57,7 +63,7 @@
   }
 
   /* -------------------------------
-      HOURS TOOL
+      HOURS TOOL LOGIC
   --------------------------------*/
 
   const anchor = new Date(2026, 4, 11); // May 11, 2026
@@ -96,7 +102,7 @@
   }
 
   /* -------------------------------
-      FOLDER BUILDER TOOL
+      FOLDER BUILDER TOOL LOGIC
   --------------------------------*/
 
   function sanitizeFolderName(name) {
@@ -123,23 +129,22 @@
   }
 
   /* -------------------------------
-     ROUTE OPTIMIZER TOOL (OSRM Powered)
+     ROUTE OPTIMIZER ENGINE
   --------------------------------*/
 
-  const FIXED_START = "38.9591451,-85.8651259";
-
-  // Generates standard Google Maps multi-stop direction URL from a pre-sorted array
   function buildGoogleMapsURL(sortedCoords) {
-    if (sortedCoords.length < 1) return null;
+    if (sortedCoords.length < 2) return null;
 
-    const origin = FIXED_START;
+    const originObj = sortedCoords[0];
+    const origin = `${originObj.lat},${originObj.lon}`;
+
     const destinationObj = sortedCoords[sortedCoords.length - 1];
     const destination = `${destinationObj.lat},${destinationObj.lon}`;
 
     let waypointsParam = "";
-    if (sortedCoords.length > 1) {
+    if (sortedCoords.length > 2) {
       const waypointParts = sortedCoords
-        .slice(0, -1) // Everything except final destination
+        .slice(1, -1)
         .map(c => `${c.lat},${c.lon}`)
         .join("|");
 
@@ -149,15 +154,11 @@
     return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypointsParam}&travelmode=driving`;
   }
 
-  // Intercepts the array, talks to OSRM road networks, and reconstructs index order safely
   async function getOSRMOptimizedOrder(coords) {
-    if (coords.length <= 1) return coords;
+    if (coords.length <= 2) return coords;
 
-    const [startLat, startLon] = FIXED_START.split(",");
-    const startPair = `${startLon.trim()},${startLat.trim()}`;
     const coordString = coords.map(c => `${c.lon},${c.lat}`).join(";");
-
-    const url = `https://router.project-osrm.org/trip/v1/driving/${startPair};${coordString}?source=first&roundtrip=false`;
+    const url = `https://router.project-osrm.org/trip/v1/driving/${coordString}?source=first&roundtrip=false`;
 
     try {
       const response = await fetch(url);
@@ -168,13 +169,9 @@
         return coords;
       }
 
-      // Map dynamic array index context to prevent properties of undefined errors
-      const sortedWaypoints = data.waypoints
-        .map((wp, index) => ({ ...wp, inputIndex: index }))
-        .slice(1) // Skip index 0 (FIXED_START)
-        .sort((a, b) => a.waypoint_index - b.waypoint_index);
+      const sortedWaypoints = data.waypoints.map((wp, index) => ({ ...wp, inputIndex: index })).sort((a, b) => a.waypoint_index - b.waypoint_index);
 
-      return sortedWaypoints.map(wp => coords[wp.inputIndex - 1]);
+      return sortedWaypoints.map(wp => coords[wp.inputIndex]);
     } catch (error) {
       console.error("OSRM optimization network failure, using fallback:", error);
       return coords;
@@ -182,37 +179,74 @@
   }
 
   /* -------------------------------
-     DOM READY & EVENT HANDLERS
+      DAILY LOG TOOL LOGIC
+  --------------------------------*/
+
+  // Operational shifts: 6 AM to 5 PM
+  const START_HOUR = 6;
+  const TOTAL_HOURS = 12;
+
+  function getLogHoursArray() {
+    const hours = [];
+    for (let i = 0; i < TOTAL_HOURS; i++) {
+      const currentHour = (START_HOUR + i) % 24;
+      const ampm = currentHour >= 12 ? "PM" : "AM";
+      const displayHour = currentHour % 12 === 0 ? 12 : currentHour % 12;
+      hours.push(`${displayHour}:00 ${ampm}`);
+    }
+    return hours;
+  }
+
+  async function loadDailyLog(dateStr) {
+    const raw = localStorage.getItem(`dailyLog_${dateStr}`);
+    return raw ? JSON.parse(raw) : {};
+  }
+
+  async function saveDailyLog(dateStr, data) {
+    localStorage.setItem(`dailyLog_${dateStr}`, JSON.stringify(data));
+  }
+
+  /* -------------------------------
+     DOM READY EVENT ATTACHMENTS
   --------------------------------*/
 
   document.addEventListener("DOMContentLoaded", () => {
-    /* MAP LINKS INSTANCE */
-    document.getElementById("open-maplinks").addEventListener("click", () => {
+    /* MAP LINKS TOOL */
+    safeListen("open-maplinks", "click", () => {
       const ta = document.getElementById("coords-input");
-      ta.value = "";
-      document.getElementById("modal-maplinks").classList.remove("hidden");
-      setTimeout(() => ta.focus(), 50);
+      if (ta) ta.value = "";
+      const modal = document.getElementById("modal-maplinks");
+      if (modal) modal.classList.remove("hidden");
+      setTimeout(() => {
+        if (ta) ta.focus();
+      }, 50);
     });
 
-    document.getElementById("modal-cancel").addEventListener("click", () => {
-      document.getElementById("modal-maplinks").classList.add("hidden");
+    safeListen("modal-cancel", "click", () => {
+      const modal = document.getElementById("modal-maplinks");
+      if (modal) modal.classList.add("hidden");
     });
 
-    document.getElementById("modal-generate").addEventListener("click", async () => {
-      const result = processInput(document.getElementById("coords-input").value);
-      await copyToClipboard(result);
-      document.getElementById("modal-maplinks").classList.add("hidden");
-      alert("Map links copied to clipboard.");
+    safeListen("modal-generate", "click", async () => {
+      const inputEl = document.getElementById("coords-input");
+      if (inputEl) {
+        const result = processInput(inputEl.value);
+        await copyToClipboard(result);
+        const modal = document.getElementById("modal-maplinks");
+        if (modal) modal.classList.add("hidden");
+        alert("Map links copied to clipboard.");
+      }
     });
 
-    /* HOURS TOOL INSTANCE */
-    document.getElementById("open-hours").addEventListener("click", async () => {
+    /* HOURS TOOL INTERACTION (With Autosave & Export) */
+    safeListen("open-hours", "click", async () => {
       const today = new Date();
       const start = getPayPeriodStart(today);
       const weekdays = getWeekdays(start);
       const stored = await loadHours();
 
       const list = document.getElementById("hours-list");
+      if (!list) return;
       list.innerHTML = "";
 
       let focusField = null;
@@ -234,6 +268,14 @@
         input.className = "hours-input";
         input.type = "text";
         input.value = stored[iso] ?? "";
+        input.dataset.iso = iso;
+
+        // Dynamic keyup autosave listener
+        input.addEventListener("input", async () => {
+          const hoursData = await loadHours();
+          hoursData[input.dataset.iso] = input.value.trim() || null;
+          await saveHours(hoursData);
+        });
 
         if (d.toDateString() === today.toDateString()) {
           focusField = input;
@@ -243,52 +285,62 @@
         list.appendChild(input);
       });
 
-      document.getElementById("modal-hours").classList.remove("hidden");
+      const modal = document.getElementById("modal-hours");
+      if (modal) modal.classList.remove("hidden");
       if (focusField) focusField.focus();
     });
 
-    document.getElementById("hours-cancel").addEventListener("click", () => {
-      document.getElementById("modal-hours").classList.add("hidden");
+    safeListen("hours-cancel", "click", () => {
+      const modal = document.getElementById("modal-hours");
+      if (modal) modal.classList.add("hidden");
     });
 
-    document.getElementById("hours-save").addEventListener("click", async () => {
+    safeListen("hours-export", "click", async () => {
       const today = new Date();
       const start = getPayPeriodStart(today);
       const weekdays = getWeekdays(start);
+      const stored = await loadHours();
 
-      const inputs = document.querySelectorAll(".hours-input");
-      const stored = {};
+      let fileContent = `PAY PERIOD HOURS REPORT\n`;
+      fileContent += `Generated: ${today.toISOString().split("T")[0]}\n`;
+      fileContent += `==========================================\n\n`;
 
-      inputs.forEach((input, i) => {
-        const d = weekdays[i];
+      weekdays.forEach((d, index) => {
+        if (index === 5) fileContent += `------------------------------------------\n`;
         const iso = d.toISOString().split("T")[0];
-        stored[iso] = input.value.trim() || null;
+        const readableDate = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        const hoursLogged = stored[iso] || "0";
+        fileContent += `${readableDate.padEnd(20, " ")}: ${hoursLogged} hrs\n`;
       });
 
-      await saveHours(stored);
-
-      document.getElementById("modal-hours").classList.add("hidden");
-      alert("Hours saved.");
+      const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+      downloadBlob(blob, `Hours_Report_${today.toISOString().split("T")[0]}.txt`);
     });
 
-    /* FOLDER BUILDER TOOL INSTANCE */
-    document.getElementById("open-folderbuilder").addEventListener("click", () => {
+    /* FOLDER BUILDER TOOL */
+    safeListen("open-folderbuilder", "click", () => {
       const ta = document.getElementById("folderbuilder-input");
-      ta.value = "";
-      document.getElementById("folderbuilder-output").textContent = "";
-      document.getElementById("modal-folderbuilder").classList.remove("hidden");
-      setTimeout(() => ta.focus(), 50);
+      if (ta) ta.value = "";
+      const out = document.getElementById("folderbuilder-output");
+      if (out) out.textContent = "";
+      const modal = document.getElementById("modal-folderbuilder");
+      if (modal) modal.classList.remove("hidden");
+      setTimeout(() => {
+        if (ta) ta.focus();
+      }, 50);
     });
 
-    document.getElementById("folderbuilder-cancel").addEventListener("click", () => {
-      document.getElementById("modal-folderbuilder").classList.add("hidden");
+    safeListen("folderbuilder-cancel", "click", () => {
+      const modal = document.getElementById("modal-folderbuilder");
+      if (modal) modal.classList.add("hidden");
     });
 
-    document.getElementById("folderbuilder-generate").addEventListener("click", async () => {
-      const raw = document.getElementById("folderbuilder-input").value || "";
+    safeListen("folderbuilder-generate", "click", async () => {
+      const rawEl = document.getElementById("folderbuilder-input");
       const output = document.getElementById("folderbuilder-output");
+      if (!rawEl || !output) return;
 
-      const lines = raw
+      const lines = rawEl.value
         .split(/\r?\n/)
         .map(l => l.trim())
         .filter(l => l.length > 0);
@@ -298,8 +350,12 @@
         return;
       }
 
-      const zip = new JSZip();
+      if (typeof JSZip === "undefined") {
+        output.textContent = "Error: JSZip library not loaded.";
+        return;
+      }
 
+      const zip = new JSZip();
       lines.forEach(name => {
         const safeName = sanitizeFolderName(name);
         zip.folder(safeName);
@@ -309,7 +365,8 @@
 
       try {
         const blob = await zip.generateAsync({ type: "blob" });
-        document.getElementById("modal-folderbuilder").classList.add("hidden");
+        const modal = document.getElementById("modal-folderbuilder");
+        if (modal) modal.classList.add("hidden");
         downloadBlob(blob, "folders.zip");
 
         setTimeout(() => {
@@ -321,21 +378,27 @@
       }
     });
 
-    /* ROUTE OPTIMIZER BUTTON LOGIC */
-    document.getElementById("open-routeoptimizer").addEventListener("click", () => {
+    /* ROUTE OPTIMIZER TOOL */
+    safeListen("open-routeoptimizer", "click", () => {
       const ta = document.getElementById("routeoptimizer-input");
-      ta.value = "";
-      document.getElementById("modal-routeoptimizer").classList.remove("hidden");
-      setTimeout(() => ta.focus(), 50);
+      if (ta) ta.value = "";
+      const modal = document.getElementById("modal-routeoptimizer");
+      if (modal) modal.classList.remove("hidden");
+      setTimeout(() => {
+        if (ta) ta.focus();
+      }, 50);
     });
 
-    document.getElementById("routeoptimizer-cancel").addEventListener("click", () => {
-      document.getElementById("modal-routeoptimizer").classList.add("hidden");
+    safeListen("routeoptimizer-cancel", "click", () => {
+      const modal = document.getElementById("modal-routeoptimizer");
+      if (modal) modal.classList.add("hidden");
     });
 
-    document.getElementById("routeoptimizer-generate").addEventListener("click", async () => {
-      const raw = document.getElementById("routeoptimizer-input").value || "";
-      const lines = raw
+    safeListen("routeoptimizer-generate", "click", async () => {
+      const inputEl = document.getElementById("routeoptimizer-input");
+      if (!inputEl) return;
+
+      const lines = inputEl.value
         .split(/\r?\n/)
         .map(l => l.trim())
         .filter(l => l.length > 0)
@@ -355,26 +418,113 @@
         }
       }
 
-      if (coords.length < 1) {
-        alert("Need at least one valid coordinate pair.");
+      if (coords.length < 2) {
+        alert("Need at least two valid coordinate pairs to build a route.");
         return;
       }
 
       const btn = document.getElementById("routeoptimizer-generate");
-      btn.innerText = "Optimizing Route...";
+      if (btn) btn.innerText = "Optimizing Route...";
 
       const optimizedCoords = await getOSRMOptimizedOrder(coords);
       const url = buildGoogleMapsURL(optimizedCoords);
 
-      btn.innerText = "Generate Route";
+      if (btn) btn.innerText = "Generate Route";
 
       if (!url) {
         alert("Unable to build route.");
         return;
       }
 
-      document.getElementById("modal-routeoptimizer").classList.add("hidden");
+      const modal = document.getElementById("modal-routeoptimizer");
+      if (modal) modal.classList.add("hidden");
       window.open(url, "_blank");
+    });
+
+    /* DAILY LOG TOOL INTERACTION (With Autosave & Export) */
+    safeListen("open-dailylog", "click", async () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const hoursLabels = getLogHoursArray();
+      const storedData = await loadDailyLog(todayStr);
+
+      const container = document.getElementById("dailylog-container");
+      if (!container) return;
+      container.innerHTML = "";
+
+      hoursLabels.forEach(hourLabel => {
+        const row = document.createElement("div");
+        row.className = "log-hour-row";
+
+        const label = document.createElement("div");
+        label.className = "log-time-label";
+        label.textContent = hourLabel;
+        row.appendChild(label);
+
+        const quarters = ["00", "15", "30", "45"];
+        quarters.forEach(q => {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "quarter-input";
+          input.dataset.hour = hourLabel;
+          input.dataset.quarter = q;
+          input.placeholder = `:${q}`;
+
+          const lookupKey = `${hourLabel}_${q}`;
+          input.value = storedData[lookupKey] ?? "";
+
+          // Inline dynamic keystroke autosave engine
+          input.addEventListener("input", async () => {
+            const freshStoredData = await loadDailyLog(todayStr);
+            const val = input.value.trim();
+
+            if (val) {
+              freshStoredData[lookupKey] = val;
+            } else {
+              delete freshStoredData[lookupKey];
+            }
+            await saveDailyLog(todayStr, freshStoredData);
+          });
+
+          row.appendChild(input);
+        });
+
+        container.appendChild(row);
+      });
+
+      const modal = document.getElementById("modal-dailylog");
+      if (modal) modal.classList.remove("hidden");
+    });
+
+    safeListen("dailylog-cancel", "click", () => {
+      const modal = document.getElementById("modal-dailylog");
+      if (modal) modal.classList.add("hidden");
+    });
+
+    safeListen("dailylog-export", "click", () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const inputs = document.querySelectorAll(".quarter-input");
+
+      let fileContent = `DAILY LOG REPORT - DATE: ${todayStr}\n`;
+      fileContent += `==========================================\n\n`;
+
+      let lastHour = "";
+      inputs.forEach(input => {
+        const hour = input.dataset.hour;
+        const quarter = input.dataset.quarter;
+        const note = input.value.trim() || "---";
+
+        if (hour !== lastHour) {
+          if (lastHour !== "") fileContent += `\n`;
+          fileContent += `--- ${hour} ---------\n`;
+          lastHour = hour;
+        }
+
+        const timeFormatted = hour.replace(" ", `:${quarter} `);
+        fileContent += `  [${timeFormatted.padEnd(11, " ")}] ${note}\n`;
+      });
+
+      const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+      downloadBlob(blob, `Daily_Log_${todayStr}.txt`);
     });
   });
 })();
