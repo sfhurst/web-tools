@@ -6,6 +6,7 @@
     <link rel="icon" type="image/svg+xml" href="assets/construction_24dp_5985E1_FILL0_wght400_GRAD0_opsz24.svg" />
     <link rel="stylesheet" href="styles.css" />
     <script src="jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
 
   <body>
@@ -20,12 +21,6 @@
           <div class="tool-desc">Enter hours for each workday in the current pay period. Saves automatically and exports to text.</div>
           <button class="tool-btn" id="open-hours">Run Tool</button>
         </div>
-
-        <!-- <div class="tool">
-          <div class="tool-title">Daily Log (Quarter-Hour)</div>
-          <div class="tool-desc">Track tasks in 15-minute increments across standard operational hours (6AM-5PM). Saves automatically.</div>
-          <button class="tool-btn" id="open-dailylog">Run Tool</button>
-        </div> -->
 
         <div class="tool">
           <div class="tool-title">Folder Builder</div>
@@ -44,6 +39,18 @@
           <div class="tool-desc">Generate an optimized Google Maps driving route from up to 10 unordered GPS coordinate pairs.</div>
           <button class="tool-btn" id="open-routeoptimizer">Run Tool</button>
         </div>
+
+        <div class="tool">
+          <div class="tool-title">Asset Reconciliation</div>
+          <div class="tool-desc">Compare an old asset spreadsheet to a new one. Automatically matches columns, strips leading zeros, and adds a results worksheet to the old workbook.</div>
+          <button class="tool-btn" id="open-reconciler">Run Tool</button>
+        </div>
+
+        <div class="tool">
+          <div class="tool-title">Excel Link Injector</div>
+          <div class="tool-desc">Upload any spreadsheet to automatically detect coordinate columns, convert them to DMS format, and inject a live Map hyperlink column.</div>
+          <button class="tool-btn" id="open-injector">Run Tool</button>
+        </div>
       </div>
     </main>
 
@@ -51,7 +58,6 @@
       <div class="modal">
         <h3>Map Links</h3>
         <textarea id="coords-input" placeholder="Paste lat/long pairs here..."></textarea>
-
         <div class="modal-buttons">
           <button id="modal-generate" class="btn-action">Generate</button>
           <button id="modal-cancel">Cancel</button>
@@ -62,12 +68,10 @@
     <div id="modal-hours" class="modal-overlay hidden">
       <div class="modal">
         <h3>Record Hours</h3>
-
         <div id="hours-list"></div>
-
         <div class="modal-buttons">
           <button id="hours-export" class="btn-action">Export Text</button>
-          <button id="hours-cancel">Cancel</button>
+          <button id="hours-close">Close</button>
         </div>
       </div>
     </div>
@@ -75,10 +79,8 @@
     <div id="modal-folderbuilder" class="modal-overlay hidden">
       <div class="modal">
         <h3>Folder Builder</h3>
-
         <textarea id="folderbuilder-input" placeholder="One folder name per line..."></textarea>
         <div id="folderbuilder-output" class="output"></div>
-
         <div class="modal-buttons">
           <button id="folderbuilder-generate" class="btn-action">Generate</button>
           <button id="folderbuilder-cancel">Cancel</button>
@@ -89,9 +91,7 @@
     <div id="modal-routeoptimizer" class="modal-overlay hidden">
       <div class="modal">
         <h3>Route Optimizer</h3>
-
         <textarea id="routeoptimizer-input" placeholder="38.1676507,-85.9411474"></textarea>
-
         <div class="modal-buttons">
           <button id="routeoptimizer-generate" class="btn-action">Generate Route</button>
           <button id="routeoptimizer-cancel">Cancel</button>
@@ -99,15 +99,46 @@
       </div>
     </div>
 
-    <div id="modal-dailylog" class="modal-overlay hidden">
-      <div class="modal dailylog-modal">
-        <h3>Daily Log (6:00 AM - 5:00 PM)</h3>
-
-        <div id="dailylog-container"></div>
-
+    <div id="modal-reconciler" class="modal-overlay hidden">
+      <div class="modal reconciler-modal">
+        <h3>Asset Reconciliation</h3>
+        <div style="background: #eaf4fa; border: 1px solid #bce0f2; color: #1a4d6c; font-size: 11px; padding: 8px; border-radius: 4px; margin-bottom: 12px; line-height: 1.3">
+          <strong>Target Columns Evaluated:</strong><br />
+          • <strong>Asset Identifier:</strong> Key mapped from columns matching <em>Asset Number, Asset ID, or Structure Number</em> (leading zeros stripped).<br />
+          • <strong>Rehab Check:</strong> Modifications evaluated using columns matching <em>Asset Name or Designation</em> (whitespace and casing normalized).
+        </div>
+        <div class="file-input-group">
+          <label>1. Upload Old Asset List (Workbook Baseline):</label>
+          <input type="file" id="reconciler-old-file" accept=".xlsx, .xls, .csv" />
+        </div>
+        <div class="file-input-group">
+          <label>2. Upload New Asset List (Comparison Source):</label>
+          <input type="file" id="reconciler-new-file" accept=".xlsx, .xls, .csv" />
+        </div>
+        <div id="reconciler-summary" class="reconciler-summary-box hidden"></div>
         <div class="modal-buttons">
-          <button id="dailylog-export" class="btn-action">Export Text</button>
-          <button id="dailylog-cancel">Cancel</button>
+          <button id="reconciler-generate" class="btn-action">Reconcile & Export</button>
+          <button id="reconciler-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-injector" class="modal-overlay hidden">
+      <div class="modal reconciler-modal">
+        <h3>Excel Link Injector</h3>
+        <div style="background: #fdfaf2; border: 1px solid #f3e5c8; color: #795516; font-size: 11px; padding: 8px; border-radius: 4px; margin-bottom: 12px; line-height: 1.3">
+          <strong>Dynamic Geo-Scanning Engine:</strong><br />
+          Scans all tabs and headers for terms like <em>Lat, Long, GPS, or Coordinates</em>. Validates that underlying cell values are valid fractional coordinates, handles split or single combined
+          column values, skips empty spaces seamlessly, and appends live interactive map formula links directly.
+        </div>
+        <div class="file-input-group">
+          <label>Select Spreadsheet Workbook:</label>
+          <input type="file" id="injector-file" accept=".xlsx, .xls, .csv" />
+        </div>
+        <div id="injector-summary" class="reconciler-summary-box hidden"></div>
+        <div class="modal-buttons">
+          <button id="injector-generate" class="btn-action">Inject & Download</button>
+          <button id="injector-cancel">Cancel</button>
         </div>
       </div>
     </div>
